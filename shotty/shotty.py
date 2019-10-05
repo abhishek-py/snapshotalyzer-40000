@@ -15,10 +15,68 @@ def filter_instances(project):
 
     return instances
 
-## grouping commands together
+## group to nest volume and instance sub groups
 @click.group()
+def cli():
+    """Shotty manages snapshot"""
+
+@cli.group('snapshots')
+def snapshots():
+    """Commands for snapshots"""
+
+@snapshots.command('list')
+## below is optional and can have default value
+@click.option('--project', default=None,
+help="Only snapshots for project (tag Project:<name>)")
+
+def list_snapshots(project):
+    "List EC2 snapshots"
+    instances = filter_instances(project)
+    for i in instances:
+        for v in i.volumes.all():
+            for s in v.snapshots.all():
+                print(",".join((
+                s.id,
+                v.id,
+                i.id,
+                s.state,
+                s.progress,
+                s.start_time.strftime("%c")
+            )))
+    return
+@cli.group('volumes')
+def volumes():
+    """Commands for volumes"""
+
+@volumes.command('list')
+## below is optional and can have default value
+@click.option('--project', default=None,
+help="Only volumes for project (tag Project:<name>)")
+
+def list_volumes(project):
+    "List EC2 volumes"
+    instances = filter_instances(project)
+    for i in instances:
+        for v in i.volumes.all():
+            print(",".join((v.id,i.id,v.state,str(v.size) + "GiB",v.encrypted and "Encrypted" or "Not Encrypted")))
+    return
+
+
+@cli.group('instances')
 def instances():
     """Commands for instances"""
+@instances.command('snapshot', help = "create snapshots of all volumes")
+@click.option('--project', default=None,
+help="Only instance for project (tag Project:<name>)")
+def create_snapshots(project):
+    "Create snapshot for EC2 Projects"
+    instances= filter_instances(project)
+    for i in instances:
+        i.stop()
+        for v in i.volumes.all():
+            print("Creating snapshot for {0}".format(v.id))
+            v.create_snapshots(Description="Created by SnanshotAlyzer 40000")
+    return
 
 @instances.command('list')
 ##@click.command()
@@ -39,7 +97,7 @@ def list_instances(project):
         i.state['Name'],
         i.public_dns_name,
         tags.get('Project','<no project>'))))
-        return
+    return
 
 ### stopping instances command grouping
 
@@ -73,4 +131,4 @@ def list_instances(project):
 
 if __name__ == '__main__':
     ##list_instances()
-    instances()
+    cli()
